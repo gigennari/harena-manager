@@ -9,13 +9,28 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from .models import Person
+from .models import Person, InstitutionDomain
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
 
+    @staticmethod
+    def get_institution_from_email(email):
+        """
+        Extracts the institution from the email domain.
+        Assumes that the institution is determined by the email domain.
+        """
+        domain = email.split('@')[-1]
+        try:
+            institution_domain = InstitutionDomain.objects.get(name=domain)
+            return institution_domain.institution
+        except InstitutionDomain.DoesNotExist:
+            return None
+            
     def post(self, request):
         google_token = request.data.get('token')
+
+        # Check if 
 
         if not google_token:
             return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -56,6 +71,7 @@ class GoogleAuthView(APIView):
             person, created = Person.objects.get_or_create(user=user)
             person.google_id = google_id
             person.profile_picture = profile_picture
+            person.institution = self.get_institution_from_email(email)
             person.save()
 
             # Create or get authentication token
@@ -68,7 +84,8 @@ class GoogleAuthView(APIView):
                     'id': user.id,
                     'email': user.email,
                     'name': f"{user.first_name} {user.last_name}".strip(),
-                    'picture': person.profile_picture
+                    'picture': person.profile_picture,
+                    'institution': user.person.institution.name if user.person.institution else None
                 }
             })
 
