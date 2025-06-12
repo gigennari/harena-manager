@@ -1,0 +1,13 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block object-tools %}
+    {{ block.super }}
+    {% if change %}
+        <li>
+            <a class="button" href="{% url 'admin:generate-invite-token' original.id %}">
+                Gerar token de convite
+            </a>
+        </li>
+    {% endif %}
+{% endblock %}

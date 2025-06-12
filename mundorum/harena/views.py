@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from .models import Person, InstitutionDomain
+from .models import Person, InstitutionDomain, ProfessorInviteToken
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -29,6 +29,7 @@ class GoogleAuthView(APIView):
             
     def post(self, request):
         google_token = request.data.get('token')
+        invite_token = request.data.get('invite_token', None)
 
         # Check if 
 
@@ -72,6 +73,30 @@ class GoogleAuthView(APIView):
             person.google_id = google_id
             person.profile_picture = profile_picture
             person.institution = self.get_institution_from_email(email)
+
+            #Determine role and institution based on invite token if provided
+            if invite_token:
+                try:
+                    token = ProfessorInviteToken.objects.get(token=invite_token)
+
+                    if not token.is_valid():
+                        return Response({'error': 'Token expirado'}, status=400)
+
+
+                    person.institution = token.institution
+                    person.role = 'professor'
+                    person.save()
+
+                    token.used_by.add(person)
+                    token.save()
+
+                except ProfessorInviteToken.DoesNotExist:
+                    return Response({'error': 'Token de convite inválido'}, status=400)
+            else:
+                person.institution = self.get_institution_from_email(email)
+                person.role = 'student'
+                person.save()
+
             person.save()
 
             # Create or get authentication token
