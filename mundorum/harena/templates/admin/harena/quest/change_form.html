@@ -1,11 +1,23 @@
 {% extends "admin/change_form.html" %}
+{% load static %}
+{% load group_tags %}
 
 {% block object-tools %}
   {{ block.super }}
   {% if change %}
-    <li>
+    <li style="margin-top: 15px;">
       <a class="button" href="{% url 'admin:generate-quest-viewer-token' original.id %}">
         Gerar token de visualização
+      </a>
+    </li>
+    <li style="margin-top: 15px;">
+      <a class="button" href="/admin/auth/group/{% group_id_by_name 'viewers_'|add:original.id %}/change/" >
+        Editar grupo de Viewers
+      </a>
+    </li>
+    <li style="margin-top: 15px;">
+      <a class="button" href="/admin/auth/group/{% group_id_by_name 'authors_'|add:original.id %}/change/" >
+        Editar grupo de Authors
       </a>
     </li>
   {% endif %}

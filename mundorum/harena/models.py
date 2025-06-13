@@ -87,6 +87,7 @@ class Quest(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
+        
         # Automatically add the owner to the quest's group
         viewers_group, _ = Group.objects.get_or_create(name=f"viewers_{self.id}")
         authors_group, _ = Group.objects.get_or_create(name=f"authors_{self.id}")
