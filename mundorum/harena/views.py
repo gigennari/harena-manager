@@ -9,7 +9,10 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from .models import Person, InstitutionDomain, ProfessorInviteToken
+from .models import Person, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken
+from django.db.models import Q
+from django.contrib.auth.models import Group
+from .serializers import QuestSerializer
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -138,3 +141,56 @@ class UserView(APIView):
             'name': f"{user.first_name} {user.last_name}".strip(),
             'picture': user.person.profile_picture if hasattr(user, 'person') else None
         })
+
+class QuestListView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        person = request.user.person
+        user = request.user
+
+        # Extrai os IDs das quests que o user pode ver via grupo
+        group_names = user.groups.values_list('name', flat=True)
+        quest_ids_from_groups = [
+            name.replace("viewers_", "") for name in group_names if name.startswith("viewers_")
+        ]
+
+        # Quests visíveis institucionalmente ou explicitamente
+        quests = Quest.objects.filter(
+            Q(visible_to_institution=True, institution=person.institution) |
+            Q(id__in=quest_ids_from_groups) |
+            Q(owner=person)
+        ).distinct()
+
+        serializer = QuestSerializer(quests, many=True)
+        return Response(serializer.data)    
+    
+
+class UseQuestViewerTokenView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        token_value = request.data.get('token')
+
+        if not token_value:
+            return Response({'error': 'Token não enviado'}, status=400)
+
+        try:
+            token_obj = QuestViewerInviteToken.objects.get(token=token_value)
+
+            if not token_obj.is_valid():
+                return Response({'error': 'Token expirado'}, status=400)
+
+            person = request.user.person
+            quest = token_obj.quest
+
+            group = Group.objects.get(name=f"viewers_{quest.id}")
+            group.user_set.add(person.user)
+
+
+            return Response({'success': f"{person} agora pode visualizar a quest '{quest.name}'."})
+
+        except QuestViewerInviteToken.DoesNotExist:
+            return Response({'error': 'Token inválido'}, status=404)  

@@ -3,7 +3,11 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
+from django.contrib.auth.models import Group
 import uuid
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
+
 
 class Institution(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -70,3 +74,39 @@ class ProfessorInviteToken(models.Model):
     
     def __str__(self):
         return f"Token for {self.institution.name} - Expires at {self.expires_at.strftime('%d/%m/%Y %H:%M')}"
+
+# A Quest is a group of cases or challenge that can be assigned to users, associated with an institution.    
+class Quest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    institution = models.ForeignKey('Institution', on_delete=models.CASCADE, related_name='quests')
+    owner = models.ForeignKey('Person', on_delete=models.PROTECT, related_name='owned_quests')
+    visible_to_institution = models.BooleanField(default=False)  # if True, all users in the institution can see this quest
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Automatically add the owner to the quest's group
+        viewers_group, _ = Group.objects.get_or_create(name=f"viewers_{self.id}")
+        authors_group, _ = Group.objects.get_or_create(name=f"authors_{self.id}")
+        self.owner.user.groups.add(viewers_group, authors_group)
+
+    def __str__(self):
+        return f"{self.name} ({self.institution.name})" 
+
+# Token for inviting users to view a Quest, with an expiration date
+class QuestViewerInviteToken(models.Model):
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    quest = models.ForeignKey('Quest', on_delete=models.CASCADE, related_name='viewer_tokens')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def is_valid(self):
+        return timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"Token for {self.quest.name} - Expires at {self.expires_at.strftime('%d/%m/%Y %H:%M')}"
+    
+  
+

@@ -5,7 +5,7 @@ from django.urls import path
 from django.shortcuts import redirect
 from django.contrib import messages
 
-from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken
+from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken
 
 admin.site.register(Person)
 
@@ -68,5 +68,33 @@ def generate_professor_invite_token(modeladmin, request, queryset):
         )
         modeladmin.message_user(
             request,
-            f"Token gerado para {institution.name}: {token.code}"
+            f"Token gerado para {institution.name}: {token.token}"
         )
+
+@admin.register(Quest)
+class QuestAdmin(admin.ModelAdmin):
+    list_display = ('name', 'institution', 'owner', 'visible_to_institution')
+    change_form_template = "admin/harena/quest/change_form.html"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:quest_id>/generate-viewer-token/',
+                self.admin_site.admin_view(self.generate_viewer_token),
+                name='generate-quest-viewer-token',
+            ),
+        ]
+        return custom_urls + urls
+
+    def generate_viewer_token(self, request, quest_id):
+        from datetime import timedelta
+        quest = Quest.objects.get(pk=quest_id)
+
+        token = QuestViewerInviteToken.objects.create(
+            quest=quest,
+            expires_at=timezone.now() + timedelta(days=30)
+        )
+
+        messages.success(request, f"Token criado: {token.token}")
+        return redirect(f'/admin/harena/quest/{quest_id}/change/')        
