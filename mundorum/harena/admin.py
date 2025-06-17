@@ -5,7 +5,7 @@ from django.urls import path
 from django.shortcuts import redirect
 from django.contrib import messages
 
-from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken
+from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case 
 
 admin.site.register(Person)
 
@@ -98,3 +98,23 @@ class QuestAdmin(admin.ModelAdmin):
 
         messages.success(request, f"Token criado: {token.token}")
         return redirect(f'/admin/harena/quest/{quest_id}/change/')        
+    
+
+class QuestCaseInline(admin.TabularInline):
+    model = QuestCase
+    extra = 1
+
+
+@admin.register(Case)
+class CaseAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'case_owner', 'created_at', 'complexity', 'specialty', 
+                    'content', 'answer', 'possible_answers', 'quest_count')
+    list_filter = ('complexity', 'specialty', 'case_owner')
+    search_fields = ('name', 'description', 'content', 'answer')
+
+    def quest_count(self, obj):
+        return obj.quest_cases.count()
+
+    quest_count.short_description = "Number of Quests"
+    
+    inlines = [QuestCaseInline]

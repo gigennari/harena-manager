@@ -7,6 +7,8 @@ from django.contrib.auth.models import Group
 import uuid
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
+from django.contrib.postgres.fields import JSONField
+from django.db.models import JSONField
 
 
 class Institution(models.Model):
@@ -111,3 +113,43 @@ class QuestViewerInviteToken(models.Model):
     
   
 
+class Case(models.Model):
+
+    COMPLEXITY_CHOICES = [
+        ('undergraduate', 'Undergraduate'), #still in college
+        ('graduate', 'Graduate'), #finished college, but not yet a PhD
+        ('postgraduate', 'Postgraduate'), #PhD or higher
+    ]   
+
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)  # title of the case
+    description = models.TextField(blank=True, null=True)  # optional case description 
+    content = models.TextField()  # full content of the case
+    answer = models.CharField(max_length=255) #correct answer for the case
+    possible_answers = JSONField(default=list, blank=True)  # list of possible answers for the case
+    created_at = models.DateTimeField(auto_now_add=True)
+    case_owner = models.ForeignKey('Person', on_delete=models.PROTECT, related_name='cases_owned')
+    complexity = models.CharField(max_length=30, choices=COMPLEXITY_CHOICES, default='undergraduate')
+    specialty = models.CharField(max_length=255, blank=True, null=True)
+    image = models.ImageField(upload_to='case_images/', blank=True, null=True)  # optional image for the case
+
+    def __str__(self):
+        return self.name
+
+    
+class QuestCase(models.Model):
+    quest = models.ForeignKey('Quest', on_delete=models.CASCADE, related_name='quest_cases')
+    case = models.ForeignKey('Case', on_delete=models.CASCADE, related_name='quest_cases')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+        models.UniqueConstraint(
+            fields=['quest', 'case'],
+            name='unique_quest_case'
+        )
+        ]
+
+    def __str__(self):
+        return f"{self.case.name} in {self.quest.name}"

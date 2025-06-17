@@ -9,10 +9,10 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from .models import Person, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken
+from .models import Person, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, Case, QuestCase
 from django.db.models import Q
 from django.contrib.auth.models import Group
-from .serializers import QuestSerializer
+from .serializers import QuestSerializer,CaseSerializer
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -142,31 +142,43 @@ class UserView(APIView):
             'picture': user.person.profile_picture if hasattr(user, 'person') else None
         })
 
+# Helper function to check if a user can view a quest
+def user_can_view_quest(user, quest):
+    person = user.person
+    group_names = user.groups.values_list('name', flat=True)
+    return (
+        quest.owner == person or
+        (quest.visible_to_institution and quest.institution == person.institution) or
+        f"viewers_{quest.id}" in group_names or
+        f"authors_{quest.id}" in group_names
+    )
+
+# Helper function to check if a user can edit a quest
+def user_can_edit_quest(user, quest):
+    person = user.person
+    group_names = user.groups.values_list('name', flat=True)
+    return (
+        quest.owner == person or
+        f"authors_{quest.id}" in group_names
+    )
+
+#Lists all quests that the user can view, either by being the owner, part of the institution, or via group membership.
 class QuestListView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        person = request.user.person
         user = request.user
+        quests = Quest.objects.all()
 
-        # Extrai os IDs das quests que o user pode ver via grupo
-        group_names = user.groups.values_list('name', flat=True)
-        quest_ids_from_groups = [
-            name.replace("viewers_", "") for name in group_names if name.startswith("viewers_")
-        ]
+        # Filter quests based on user permissions
+        visible_quests = [quest for quest in quests if user_can_view_quest(user, quest)]
 
-        # Quests visíveis institucionalmente ou explicitamente
-        quests = Quest.objects.filter(
-            Q(visible_to_institution=True, institution=person.institution) |
-            Q(id__in=quest_ids_from_groups) |
-            Q(owner=person)
-        ).distinct()
-
-        serializer = QuestSerializer(quests, many=True)
-        return Response(serializer.data)    
+        serializer = QuestSerializer(visible_quests, many=True)
+        return Response(serializer.data)
+   
     
-
+# Allows a user to use a token to gain access to view a quest.
 class UseQuestViewerTokenView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
@@ -194,3 +206,78 @@ class UseQuestViewerTokenView(APIView):
 
         except QuestViewerInviteToken.DoesNotExist:
             return Response({'error': 'Token inválido'}, status=404)  
+        
+#Lists all the cases associated with a quest
+class QuestCasesView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, quest_id):
+        try:
+            quest = Quest.objects.get(id=quest_id)
+        except Quest.DoesNotExist:
+            return Response({'error': 'Quest not found'}, status=404)
+
+        # Verifica se o usuário pode ver essa quest
+        if not user_can_view_quest(request.user, quest):
+            return Response({'error': 'You do not have permission to view this quest'}, status=403)
+
+        # Lista os cases associados à quest
+        cases = quest.quest_cases.all()
+        serializer = CaseSerializer(cases, many=True)
+        return Response(serializer.data)
+    
+# Adds a case to a quest
+class AddCaseToQuestView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, quest_id):
+        try:
+            quest = Quest.objects.get(id=quest_id)
+        except Quest.DoesNotExist:
+            return Response({'error': 'Quest not found'}, status=404)
+
+        if not user_can_edit_quest(request.user, quest):
+            return Response({'error': 'You do not have permission to add cases to this quest'}, status=403)
+
+        case_id = request.data.get('case_id')
+        if not case_id:
+            return Response({'error': 'Case ID is required'}, status=400)
+
+        try:
+            case = Case.objects.get(id=case_id)
+        except Case.DoesNotExist:
+            return Response({'error': 'Case not found'}, status=404)
+
+        if QuestCase.objects.filter(quest=quest, case=case).exists():
+            return Response({'info': 'This case is already part of this quest'}, status=200)
+
+        QuestCase.objects.create(quest=quest, case=case)
+        return Response({'success': f'Case {case.name} added to quest {quest.name}'}, status=201)
+
+    
+
+# Remove a case from a quest
+class RemoveCaseFromQuestView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, quest_id, case_id):
+        try:
+            quest = Quest.objects.get(id=quest_id)
+        except Quest.DoesNotExist:
+            return Response({'error': 'Quest not found'}, status=404)
+
+        if not user_can_edit_quest(request.user, quest):
+            return Response({'error': 'You do not have permission to remove cases from this quest'}, status=403)
+
+        try:
+            case = Case.objects.get(id=case_id)
+        except Case.DoesNotExist:
+            return Response({'error': 'Case not found'}, status=404)
+
+        QuestCase.objects.filter(quest=quest, case=case).delete()
+        return Response({'success': f'Case {case.name} removed from quest {quest.name}'}, status=200)
+
+

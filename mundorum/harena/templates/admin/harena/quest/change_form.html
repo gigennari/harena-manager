@@ -7,17 +7,17 @@
   {% if change %}
     <li style="margin-top: 15px;">
       <a class="button" href="{% url 'admin:generate-quest-viewer-token' original.id %}">
-        Gerar token de visualização
+        Generate Quest Viwer Invite Token 
       </a>
     </li>
     <li style="margin-top: 15px;">
       <a class="button" href="/admin/auth/group/{% group_id_by_name 'viewers_'|add:original.id %}/change/" >
-        Editar grupo de Viewers
+        Edit Viewers Group
       </a>
     </li>
     <li style="margin-top: 15px;">
       <a class="button" href="/admin/auth/group/{% group_id_by_name 'authors_'|add:original.id %}/change/" >
-        Editar grupo de Authors
+        Edit Authors Group
       </a>
     </li>
   {% endif %}
