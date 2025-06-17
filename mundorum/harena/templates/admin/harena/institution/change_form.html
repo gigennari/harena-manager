@@ -11,3 +11,43 @@
         </li>
     {% endif %}
 {% endblock %}
+
+{% block after_field_sets %}
+  <div style="padding: 10px; background-color: #f7f7f7; border-radius: 5px; margin-bottom: 20px;">
+    <h3>Institution Status</h3>
+    <p>
+      <strong>Status:</strong>
+      {% if original.active %}
+        <span style="color: green;">Active ✅</span>
+      {% else %}
+        <span style="color: red;">Inactive ❌</span>
+      {% endif %}
+    </p>
+    <p>
+      <strong>Last status change:</strong>
+      {{ original.active_updated_at|date:"d/m/Y H:i" }}
+    </p>
+  </div>
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const activeCheckbox = document.querySelector('#id_active');
+            if (activeCheckbox) {
+                let previousValue = activeCheckbox.checked;
+                activeCheckbox.addEventListener('change', function(e) {
+                    const confirmed = confirm("Are you sure you want to change the status of this institution?");
+                    if (!confirmed) {
+                        // Reverte o checkbox para o valor anterior
+                        activeCheckbox.checked = previousValue;
+                    } else {
+                        // Atualiza o valor anterior
+                        previousValue = activeCheckbox.checked;
+                    }
+                });
+            }
+        });
+    </script>
+{% endblock %}

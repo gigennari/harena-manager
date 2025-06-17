@@ -13,6 +13,18 @@ from django.db.models import JSONField
 
 class Institution(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    active = models.BooleanField(default=True)  # flag to indicate if the institution is active or not
+    active_updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if self.pk:  
+            old = Institution.objects.get(pk=self.pk)
+            if old.active != self.active:
+                self.active_updated_at = timezone.now()
+        else:
+            self.active_updated_at = timezone.now()
+        super().save(*args, **kwargs)
+
 
     def __str__(self):
         return self.name

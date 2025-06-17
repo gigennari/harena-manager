@@ -14,12 +14,14 @@ class InstitutionDomainInline(admin.TabularInline):
     model = InstitutionDomain
     extra = 1
 
+@admin.register(Institution)
 class InstitutionAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'active')
     inlines = [InstitutionDomainInline]
 
-    # Custom action to generate invite token for selected institutions
     change_form_template = "admin/harena/institution/change_form.html"
+
+    readonly_fields = ('active_updated_at',)  
 
     def get_urls(self):
         urls = super().get_urls()
@@ -31,6 +33,7 @@ class InstitutionAdmin(admin.ModelAdmin):
             ),
         ]
         return custom_urls + urls
+
     def generate_invite_token_view(self, request, institution_id):
         from .models import ProfessorInviteToken
         from datetime import timedelta
@@ -42,9 +45,12 @@ class InstitutionAdmin(admin.ModelAdmin):
             expires_at=timezone.now() + timedelta(days=7)
         )
 
-        messages.success(request, f"Token gerado para {institution.name}: {token.token}")
+        messages.success(
+            request,
+            f"Token generated for {institution.name}: {token.token}"
+        )
         return redirect(f'/admin/harena/institution/{institution_id}/change/')
-
+    
 
 @admin.register(ProfessorInviteToken)
 class ProfessorInviteTokenAdmin(admin.ModelAdmin):
@@ -56,8 +62,6 @@ class ProfessorInviteTokenAdmin(admin.ModelAdmin):
     list_filter = ('institution',)
     search_fields = ('token',)
 
-
-admin.site.register(Institution, InstitutionAdmin)
 
 @admin.action(description='Gerar token de convite para professores')
 def generate_professor_invite_token(modeladmin, request, queryset):

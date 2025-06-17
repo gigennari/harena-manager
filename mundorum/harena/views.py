@@ -14,6 +14,7 @@ from django.db.models import Q
 from django.contrib.auth.models import Group
 from .serializers import QuestSerializer,CaseSerializer
 
+
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
 
@@ -21,7 +22,6 @@ class GoogleAuthView(APIView):
     def get_institution_from_email(email):
         """
         Extracts the institution from the email domain.
-        Assumes that the institution is determined by the email domain.
         """
         domain = email.split('@')[-1]
         try:
@@ -29,38 +29,44 @@ class GoogleAuthView(APIView):
             return institution_domain.institution
         except InstitutionDomain.DoesNotExist:
             return None
-            
+
+    @staticmethod
+    def check_institution_valid(institution):
+        """
+        Verifies if the institution exists and is active.
+        Raises an Exception with an error message if invalid.
+        """
+        if institution is None:
+            raise Exception("This domain is not registered to any institution.")
+        if not institution.active:
+            raise Exception("This institution is currently inactive.")
+
     def post(self, request):
         google_token = request.data.get('token')
         invite_token = request.data.get('invite_token', None)
-
-        # Check if 
 
         if not google_token:
             return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Verify the token with Google
+            # Verify Google token
             idinfo = id_token.verify_oauth2_token(
-                google_token, 
-                requests.Request(), 
+                google_token,
+                requests.Request(),
                 settings.GOOGLE_CLIENT_ID
             )
 
-            # Get user information from the token
             google_id = idinfo['sub']
             email = idinfo['email']
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
             profile_picture = idinfo.get('picture', '')
 
-            # Check if user exists, create if not
+            # Get or create user
             try:
                 user = User.objects.get(email=email)
             except User.DoesNotExist:
-                # Create a new user
                 username = email.split('@')[0]
-                # Make sure username is unique
                 if User.objects.filter(username=username).exists():
                     username = f"{username}_{google_id[:8]}"
 
@@ -71,20 +77,20 @@ class GoogleAuthView(APIView):
                     last_name=last_name
                 )
 
-            # Update or create person
+            # Get or create person
             person, created = Person.objects.get_or_create(user=user)
             person.google_id = google_id
             person.profile_picture = profile_picture
-            person.institution = self.get_institution_from_email(email)
 
-            #Determine role and institution based on invite token if provided
+            # 🔥 If using invite token (professor registration)
             if invite_token:
                 try:
                     token = ProfessorInviteToken.objects.get(token=invite_token)
 
                     if not token.is_valid():
-                        return Response({'error': 'Token expirado'}, status=400)
+                        return Response({'error': 'Expired Token'}, status=400)
 
+                    self.check_institution_valid(token.institution)
 
                     person.institution = token.institution
                     person.role = 'professor'
@@ -94,18 +100,25 @@ class GoogleAuthView(APIView):
                     token.save()
 
                 except ProfessorInviteToken.DoesNotExist:
-                    return Response({'error': 'Token de convite inválido'}, status=400)
+                    return Response({'error': 'Invalid Invite Token'}, status=400)
+                except Exception as e:
+                    return Response({'error': str(e)}, status=403)
+
             else:
-                person.institution = self.get_institution_from_email(email)
+                institution = self.get_institution_from_email(email)
+
+                try:
+                    self.check_institution_valid(institution)
+                except Exception as e:
+                    return Response({'error': str(e)}, status=403)
+
+                person.institution = institution
                 person.role = 'student'
                 person.save()
-
-            person.save()
 
             # Create or get authentication token
             token, created = Token.objects.get_or_create(user=user)
 
-            # Return user data and token
             return Response({
                 'token': token.key,
                 'user': {
@@ -118,10 +131,10 @@ class GoogleAuthView(APIView):
             })
 
         except ValueError:
-            # Invalid token
-            return Response({'error': 'Invalid token'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'Invalid Google token'}, status=status.HTTP_401_UNAUTHORIZED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class UserView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -255,7 +268,6 @@ class AddCaseToQuestView(APIView):
 
         QuestCase.objects.create(quest=quest, case=case)
         return Response({'success': f'Case {case.name} added to quest {quest.name}'}, status=201)
-
     
 
 # Remove a case from a quest
