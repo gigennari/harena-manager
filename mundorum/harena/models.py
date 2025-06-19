@@ -41,6 +41,7 @@ class InstitutionDomain(models.Model):
 class Person(models.Model):
 
     ROLE_CHOICES = [
+        ('guest', 'Guest'),
         ('student', 'Student'),
         ('professor', 'Professor'),
     ]

@@ -13,7 +13,7 @@ class CaseSerializer(serializers.ModelSerializer):
 class QuestSerializer(serializers.ModelSerializer):
     institution_name = serializers.CharField(source='institution.name', read_only=True)
     owner_name = serializers.CharField(source='owner.user.get_full_name', read_only=True)
-    cases = serializers.SerializerMethodField()
+    #cases = serializers.SerializerMethodField()
 
     class Meta:
         model = Quest
@@ -25,12 +25,7 @@ class QuestSerializer(serializers.ModelSerializer):
             'owner',               # owner id
             'owner_name',          
             'visible_to_institution',
-            'created_at',
-            'cases' 
+            'created_at' 
         ]
 
-    def get_cases(self, obj):
-        return CaseSerializer(
-            [qc.case for qc in obj.quest_cases.all()],
-            many=True
-        ).data
+

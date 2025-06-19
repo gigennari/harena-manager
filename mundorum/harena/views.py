@@ -159,6 +159,7 @@ class UserView(APIView):
 def user_can_view_quest(user, quest):
     person = user.person
     group_names = user.groups.values_list('name', flat=True)
+
     return (
         quest.owner == person or
         (quest.visible_to_institution and quest.institution == person.institution) or
@@ -186,7 +187,7 @@ class QuestListView(APIView):
 
         # Filter quests based on user permissions
         visible_quests = [quest for quest in quests if user_can_view_quest(user, quest)]
-
+        print(f"User {user.username} can view {len(visible_quests)} quests.")
         serializer = QuestSerializer(visible_quests, many=True)
         return Response(serializer.data)
    
