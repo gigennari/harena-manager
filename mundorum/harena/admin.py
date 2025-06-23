@@ -1,9 +1,10 @@
 from django.contrib import admin
 from datetime import timedelta
 from django.utils import timezone
-from django.urls import path
+from django.urls import path, reverse
 from django.shortcuts import redirect
 from django.contrib import messages
+from .views import send_invite_email
 
 from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case 
 
@@ -21,47 +22,51 @@ class InstitutionAdmin(admin.ModelAdmin):
 
     change_form_template = "admin/harena/institution/change_form.html"
 
-    readonly_fields = ('active_updated_at',)  
+    readonly_fields = ('active_updated_at',)
 
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
             path(
-                '<int:institution_id>/generate-token/',
-                self.admin_site.admin_view(self.generate_invite_token_view),
-                name='generate-invite-token',
+                '<uuid:institution_id>/create-invite-token/',
+                self.admin_site.admin_view(self.redirect_to_invite_token),
+                name='create-invite-token',
             ),
         ]
         return custom_urls + urls
 
-    def generate_invite_token_view(self, request, institution_id):
-        from .models import ProfessorInviteToken
-        from datetime import timedelta
-        from django.utils import timezone
-
-        institution = Institution.objects.get(pk=institution_id)
-        token = ProfessorInviteToken.objects.create(
-            institution=institution,
-            expires_at=timezone.now() + timedelta(days=7)
+    def redirect_to_invite_token(self, request, institution_id):
+        return redirect(
+            reverse('admin:harena_professorinvitetoken_add') + f'?institution={institution_id}'
         )
-
-        messages.success(
-            request,
-            f"Token generated for {institution.name}: {token.token}"
-        )
-        return redirect(f'/admin/harena/institution/{institution_id}/change/')
     
 
 @admin.register(ProfessorInviteToken)
 class ProfessorInviteTokenAdmin(admin.ModelAdmin):
 
-    def used_by_list_display(self, obj):
-        return ", ".join(p.user.username for p in obj.used_by.all()) if obj.used_by.exists() else 'N/A'
-    
-    list_display = ('token', 'institution', 'expires_at', 'created_at', 'used_by_list_display', 'is_valid')
-    list_filter = ('institution',)
-    search_fields = ('token',)
 
+    list_display = ('token', 'institution', 'email', 'expires_at', 'created_at', 'is_valid')
+    list_filter = ('institution',)
+    search_fields = ('token', 'email')
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        institution_id = request.GET.get('institution')
+        if institution_id:
+            initial['institution'] = institution_id
+        return initial
+
+    def save_model(self, request, obj, form, change):
+        is_new = not change
+        super().save_model(request, obj, form, change)
+
+        if is_new:
+            send_invite_email(obj)
+            self.message_user(
+                request,
+                f"Invitation email sent to {obj.email}.",
+                messages.SUCCESS
+            )
 
 @admin.action(description='Gerar token de convite para professores')
 def generate_professor_invite_token(modeladmin, request, queryset):

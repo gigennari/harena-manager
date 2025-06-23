@@ -5,29 +5,11 @@
     {{ block.super }}
     {% if change %}
         <li>
-            <a class="button" href="{% url 'admin:generate-invite-token' original.id %}">
-                Generate Professor Invite Token
+            <a class="button" href="{% url 'admin:create-invite-token' original.id %}">
+                ➕ Create Professor Invite Token
             </a>
         </li>
     {% endif %}
-{% endblock %}
-
-{% block after_field_sets %}
-  <div style="padding: 10px; background-color: #f7f7f7; border-radius: 5px; margin-bottom: 20px;">
-    <h3>Institution Status</h3>
-    <p>
-      <strong>Status:</strong>
-      {% if original.active %}
-        <span style="color: green;">Active ✅</span>
-      {% else %}
-        <span style="color: red;">Inactive ❌</span>
-      {% endif %}
-    </p>
-    <p>
-      <strong>Last status change:</strong>
-      {{ original.active_updated_at|date:"d/m/Y H:i" }}
-    </p>
-  </div>
 {% endblock %}
 
 {% block extrahead %}
@@ -37,13 +19,11 @@
             const activeCheckbox = document.querySelector('#id_active');
             if (activeCheckbox) {
                 let previousValue = activeCheckbox.checked;
-                activeCheckbox.addEventListener('change', function(e) {
+                activeCheckbox.addEventListener('change', function() {
                     const confirmed = confirm("Are you sure you want to change the status of this institution?");
                     if (!confirmed) {
-                        // Reverte o checkbox para o valor anterior
                         activeCheckbox.checked = previousValue;
                     } else {
-                        // Atualiza o valor anterior
                         previousValue = activeCheckbox.checked;
                     }
                 });

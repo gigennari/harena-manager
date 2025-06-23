@@ -13,7 +13,31 @@ from .models import Person, InstitutionDomain, ProfessorInviteToken, Quest, Ques
 from django.db.models import Q
 from django.contrib.auth.models import Group
 from .serializers import QuestSerializer,CaseSerializer
+from django.core.mail import send_mail
 
+def send_invite_email(professor_invite_token):
+
+    link = f"{settings.CLIENT_URL}/invite/{professor_invite_token.token}/"
+
+    subject = "Professor Invitation"
+    message = (
+        f"You have been invited to join {professor_invite_token.institution.name}.\n\n"
+        f"Click the link below to accept the invitation:\n\n"
+        f"{link}\n\n"
+        "Best regards,\n"
+        "The Team"
+    )
+
+    from_email = settings.DEFAULT_FROM_EMAIL
+    recipient_list = [professor_invite_token.email]
+
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email=from_email,
+        recipient_list=recipient_list,
+        fail_silently=False
+    )
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -96,7 +120,7 @@ class GoogleAuthView(APIView):
                     person.role = 'professor'
                     person.save()
 
-                    token.used_by.add(person)
+                    token.is_used = True
                     token.save()
 
                 except ProfessorInviteToken.DoesNotExist:

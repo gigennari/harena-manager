@@ -12,6 +12,7 @@ from django.db.models import JSONField
 
 
 class Institution(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     active = models.BooleanField(default=True)  # flag to indicate if the institution is active or not
     active_updated_at = models.DateTimeField(auto_now=True)
@@ -37,6 +38,24 @@ class InstitutionDomain(models.Model):
     def __str__(self):
         return self.name    
 
+
+# Professor registration through expirable token 
+class ProfessorInviteToken(models.Model):
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True) #cerate token automatically
+    institution = models.ForeignKey(Institution, on_delete=models.CASCADE)
+    email= models.EmailField(max_length=255, blank=True, null=True)  # email of the invited professor
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    #users who used this token
+    is_used = models.BooleanField(default=False)
+    
+    def is_valid(self):
+        
+        return timezone.now() < self.expires_at
+    
+    def __str__(self):
+        return f"Token for {self.institution.name} - Expires at {self.expires_at.strftime('%d/%m/%Y %H:%M')}"
+    
 # A Person is a User with additional fields like Google ID, profile picture, birth date, institution, role.
 class Person(models.Model):
 
@@ -74,21 +93,6 @@ def create_or_update_person(sender, instance, created, **kwargs):
         instance.person.save()
 
 
-# Professor registration through expirable token 
-class ProfessorInviteToken(models.Model):
-    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True) #cerate token automatically
-    institution = models.ForeignKey(Institution, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-    #users who used this token
-    used_by = models.ManyToManyField('Person', blank=True, related_name='used_invite_tokens')
-
-    def is_valid(self):
-        
-        return timezone.now() < self.expires_at
-    
-    def __str__(self):
-        return f"Token for {self.institution.name} - Expires at {self.expires_at.strftime('%d/%m/%Y %H:%M')}"
 
 # A Quest is a group of cases or challenge that can be assigned to users, associated with an institution.    
 class Quest(models.Model):
