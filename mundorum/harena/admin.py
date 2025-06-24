@@ -5,7 +5,7 @@ from django.urls import path, reverse
 from django.shortcuts import redirect
 from django.contrib import messages
 from .views import send_invite_email
-
+from django.conf import settings
 from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case, QuestAccessToken
 
 admin.site.register(Person)
@@ -128,3 +128,11 @@ class QuestAccessTokenAdmin(admin.ModelAdmin):
         if not obj.expires_at:
             obj.expires_at = timezone.now() + timedelta(days=30)
         super().save_model(request, obj, form, change)
+    
+        link = f"{settings.CLIENT_URL}/invite/quest/{obj.token}"
+
+        self.message_user(
+                request,
+                f"✅ Access token created successfully! Link: {link}",
+                level=messages.SUCCESS
+            )
