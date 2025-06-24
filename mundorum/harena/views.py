@@ -9,11 +9,13 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from .models import Person, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, Case, QuestCase
+from .models import Person, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, Case, QuestCase, QuestAccessToken
 from django.db.models import Q
 from django.contrib.auth.models import Group
 from .serializers import QuestSerializer,CaseSerializer
 from django.core.mail import send_mail
+from datetime import timedelta
+from django.utils import timezone
 
 def send_invite_email(professor_invite_token):
 
@@ -44,9 +46,6 @@ class GoogleAuthView(APIView):
 
     @staticmethod
     def get_institution_from_email(email):
-        """
-        Extracts the institution from the email domain.
-        """
         domain = email.split('@')[-1]
         try:
             institution_domain = InstitutionDomain.objects.get(name=domain)
@@ -56,10 +55,6 @@ class GoogleAuthView(APIView):
 
     @staticmethod
     def check_institution_valid(institution):
-        """
-        Verifies if the institution exists and is active.
-        Raises an Exception with an error message if invalid.
-        """
         if institution is None:
             raise Exception("This domain is not registered to any institution.")
         if not institution.active:
@@ -67,7 +62,8 @@ class GoogleAuthView(APIView):
 
     def post(self, request):
         google_token = request.data.get('token')
-        invite_token = request.data.get('invite_token', None)
+        professor_invite_token = request.data.get('invite_token', None)
+        quest_invite_token = request.data.get('quest_invite_token', None)
 
         if not google_token:
             return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -106,10 +102,10 @@ class GoogleAuthView(APIView):
             person.google_id = google_id
             person.profile_picture = profile_picture
 
-            # 🔥 If using invite token (professor registration)
-            if invite_token:
+            # 1️⃣ If using ProfessorInviteToken
+            if professor_invite_token:
                 try:
-                    token = ProfessorInviteToken.objects.get(token=invite_token)
+                    token = ProfessorInviteToken.objects.get(token=professor_invite_token)
 
                     if not token.is_valid():
                         return Response({'error': 'Expired Token'}, status=400)
@@ -124,10 +120,47 @@ class GoogleAuthView(APIView):
                     token.save()
 
                 except ProfessorInviteToken.DoesNotExist:
-                    return Response({'error': 'Invalid Invite Token'}, status=400)
+                    return Response({'error': 'Invalid Professor Invite Token'}, status=400)
                 except Exception as e:
                     return Response({'error': str(e)}, status=403)
 
+            # 2️⃣ If using QuestAccessToken
+            elif quest_invite_token:
+                try:
+                    token = QuestAccessToken.objects.get(token=quest_invite_token)
+
+                    if not token.is_valid():
+                        return Response({'error': 'Expired or Invalid Quest Token'}, status=400)
+
+                    quest = token.quest
+
+                    # Assign institution if person has none
+                    if person.institution is None:
+                        person.institution = quest.institution
+
+                    if token.variant == 'viewer_guest':
+                        person.role = 'guest'
+                        person.save()
+                        quest.viewers.add(person)
+
+                    elif token.variant == 'viewer_existing':
+                        person.save()
+                        quest.viewers.add(person)
+
+                    elif token.variant == 'author_existing':
+                        person.save()
+                        quest.viewers.add(person)
+                        quest.authors.add(person)
+
+                    token.used_by.add(person)
+                    token.save()
+
+                except QuestAccessToken.DoesNotExist:
+                    return Response({'error': 'Invalid Quest Invite Token'}, status=400)
+                except Exception as e:
+                    return Response({'error': str(e)}, status=403)
+
+            # 3️⃣ Default flow (institution from email domain)
             else:
                 institution = self.get_institution_from_email(email)
 
@@ -150,7 +183,8 @@ class GoogleAuthView(APIView):
                     'email': user.email,
                     'name': f"{user.first_name} {user.last_name}".strip(),
                     'picture': person.profile_picture,
-                    'institution': user.person.institution.name if user.person.institution else None
+                    'institution': person.institution.name if person.institution else None,
+                    'role': person.role
                 }
             })
 
@@ -158,6 +192,7 @@ class GoogleAuthView(APIView):
             return Response({'error': 'Invalid Google token'}, status=status.HTTP_401_UNAUTHORIZED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 class UserView(APIView):
@@ -318,3 +353,73 @@ class RemoveCaseFromQuestView(APIView):
         return Response({'success': f'Case {case.name} removed from quest {quest.name}'}, status=200)
 
 
+#Create a Quest Acess Token 
+class CreateQuestAccessTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        quest_id = request.data.get('quest_id')
+        variant = request.data.get('variant')
+        expires_in_days = request.data.get('expires_in_days', 7)
+
+        try:
+            quest = Quest.objects.get(id=quest_id)
+        except Quest.DoesNotExist:
+            return Response({'error': 'Quest not found'}, status=404)
+
+        person = request.user.person
+
+        # only quest owner, authors, or institution owner can create access tokens
+        if person != quest.owner and person not in quest.authors.all() and person != quest.institution.owner:
+            return Response({'error': 'Permission denied'}, status=403)
+
+        expires_at = timezone.now() + timedelta(days=int(expires_in_days))
+
+        token = QuestAccessToken.objects.create(
+            quest=quest,
+            variant=variant,
+            expires_at=expires_at
+        )
+
+        link = f"{settings.CLIENT_URL}/invite/quest/{token.token}/"
+
+        return Response({
+            'token': str(token.token),
+            'variant': token.variant,
+            'expires_at': expires_at,
+            'link': link
+        }, status=201)
+
+#Use a Quest Acess Token to access a quest
+
+class UseQuestAccessTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        invite_token = request.data.get('invite_token')
+
+        try:
+            token = QuestAccessToken.objects.get(token=invite_token)
+
+            if not token.is_valid():
+                return Response({'error': 'Expired or Invalid Token'}, status=400)
+
+            quest = token.quest
+            person = request.user.person
+
+            if token.variant == 'viewer_existing':
+                quest.viewers.add(person)
+
+            elif token.variant == 'author_existing':
+                quest.authors.add(person)
+
+            elif token.variant == 'viewer_guest':
+                quest.viewers.add(person)
+
+            token.used_by.add(person)
+            token.save()
+
+            return Response({'message': 'Access granted to quest.'}, status=200)
+
+        except QuestAccessToken.DoesNotExist:
+            return Response({'error': 'Invalid Token'}, status=400)

@@ -6,7 +6,7 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from .views import send_invite_email
 
-from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case 
+from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case, QuestAccessToken
 
 admin.site.register(Person)
 
@@ -81,34 +81,17 @@ def generate_professor_invite_token(modeladmin, request, queryset):
             f"Token gerado para {institution.name}: {token.token}"
         )
 
+
+
 @admin.register(Quest)
 class QuestAdmin(admin.ModelAdmin):
-    list_display = ('name', 'institution', 'owner', 'visible_to_institution')
+    list_display = ('name', 'institution', 'owner')
     change_form_template = "admin/harena/quest/change_form.html"
 
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path(
-                '<uuid:quest_id>/generate-viewer-token/',
-                self.admin_site.admin_view(self.generate_viewer_token),
-                name='generate-quest-viewer-token',
-            ),
-        ]
-        return custom_urls + urls
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('institution', 'owner')
 
-    def generate_viewer_token(self, request, quest_id):
-        from datetime import timedelta
-        quest = Quest.objects.get(pk=quest_id)
-
-        token = QuestViewerInviteToken.objects.create(
-            quest=quest,
-            expires_at=timezone.now() + timedelta(days=30)
-        )
-
-        messages.success(request, f"Token criado: {token.token}")
-        return redirect(f'/admin/harena/quest/{quest_id}/change/')        
-    
 
 class QuestCaseInline(admin.TabularInline):
     model = QuestCase
@@ -128,3 +111,20 @@ class CaseAdmin(admin.ModelAdmin):
     quest_count.short_description = "Number of Quests"
     
     inlines = [QuestCaseInline]
+
+@admin.register(QuestAccessToken)
+class QuestAccessTokenAdmin(admin.ModelAdmin):
+    list_display = ('token', 'quest', 'variant', 'expires_at', 'created_at', 'is_valid', 'used_count')
+    list_filter = ('variant', 'quest')
+    search_fields = ('token',)
+
+    readonly_fields = ('created_at',)
+
+    def used_count(self, obj):
+        return obj.used_by.count()
+    used_count.short_description = 'Used by (count)'
+
+    def save_model(self, request, obj, form, change):
+        if not obj.expires_at:
+            obj.expires_at = timezone.now() + timedelta(days=30)
+        super().save_model(request, obj, form, change)

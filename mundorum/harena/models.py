@@ -156,6 +156,8 @@ class Case(models.Model):
 
     
 class QuestCase(models.Model):
+
+
     quest = models.ForeignKey('Quest', on_delete=models.CASCADE, related_name='quest_cases')
     case = models.ForeignKey('Case', on_delete=models.CASCADE, related_name='quest_cases')
     added_at = models.DateTimeField(auto_now_add=True)
@@ -170,3 +172,25 @@ class QuestCase(models.Model):
 
     def __str__(self):
         return f"{self.case.name} in {self.quest.name}"
+    
+
+class QuestAccessToken(models.Model):
+    VARIANT_CHOICES = [
+        ('viewer_existing', 'Viewer (Existing User)'),
+        ('author_existing', 'Author (Existing User)'),
+        ('viewer_guest', 'Viewer (Guest - Not Registered)'),
+    ]
+
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    quest = models.ForeignKey('Quest', on_delete=models.CASCADE, related_name='access_tokens')
+    variant = models.CharField(max_length=20, choices=VARIANT_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used_once = models.BooleanField(default=False)  # opcional
+    used_by = models.ManyToManyField('Person', blank=True)
+
+    def is_valid(self):
+        return timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"{self.get_variant_display()} Token for Quest {self.quest.name}"
