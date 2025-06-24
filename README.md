@@ -141,7 +141,7 @@ https://clienturl.com/invite/quest/<token>
 
 ## 🏗️ Model Schema 
 
-![ Model Schema](mundorum/schema.png)
+![ Model Schema](mundorum/schema_clean.png)
 
 ---
 
