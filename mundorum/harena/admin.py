@@ -45,7 +45,8 @@ class InstitutionAdmin(admin.ModelAdmin):
 class ProfessorInviteTokenAdmin(admin.ModelAdmin):
 
 
-    list_display = ('token', 'institution', 'email', 'expires_at', 'created_at', 'is_valid')
+    list_display = ('token', 'institution', 'email', 'expires_at', 'created_at', 'is_valid', 'is_used')
+    readonly_fields = ('token', 'created_at', 'expires_at', 'is_valid', 'is_used')
     list_filter = ('institution',)
     search_fields = ('token', 'email')
 
