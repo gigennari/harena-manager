@@ -19,7 +19,7 @@ from django.utils import timezone
 
 def send_invite_email(professor_invite_token):
 
-    link = f"{settings.CLIENT_URL}/invite/{professor_invite_token.token}/"
+    link = f"{settings.CLIENT_URL}/invite/professor/{professor_invite_token.token}/"
 
     subject = "Professor Invitation"
     message = (
@@ -356,7 +356,7 @@ class AddCaseToQuestView(APIView):
     
 
 # Remove a case from a quest
-class RemoveCaseToQuestView(APIView):
+class RemoveCaseFromQuestView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -401,8 +401,8 @@ class CreateQuestAccessTokenView(APIView):
 
         expires_at = timezone.now() + timedelta(days=int(expires_in_days))
 
-        role = request.data.get('role')  # ex: 'guest' ou 'other'
-        group = request.data.get('group')  # ex: 'viewer', 'author', 'editor'
+        role = request.data.get('role')  
+        group = request.data.get('group')  
 
         if role not in dict(QuestAccessToken._meta.get_field('role').choices).keys():
             return Response({'error': 'Invalid role'}, status=400)
@@ -410,7 +410,7 @@ class CreateQuestAccessTokenView(APIView):
         if group not in dict(QuestAccessToken._meta.get_field('group').choices).keys():
             return Response({'error': 'Invalid group'}, status=400)
         
-        
+
         token = QuestAccessToken.objects.create(
             quest=quest,
             role=role,

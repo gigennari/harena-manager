@@ -7,6 +7,9 @@ from django.contrib import messages
 from .views import send_invite_email
 from django.conf import settings
 from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case, QuestAccessToken
+from django.contrib.auth.models import Group
+from django.contrib.auth.admin import GroupAdmin as DefaultGroupAdmin
+from django import forms
 
 admin.site.register(Person)
 
@@ -147,3 +150,27 @@ class QuestAccessTokenAdmin(admin.ModelAdmin):
                 f"✅ Access token created successfully! Link: {link}",
                 level=messages.SUCCESS
             )
+
+class SafeGroupAdminForm(forms.ModelForm):
+    class Meta:
+        model = Group
+        fields = ['name']  # remove 'permissions'
+
+class GroupAdminWithMembers(DefaultGroupAdmin):
+    form = SafeGroupAdminForm
+    list_display = ('name', 'user_count', 'list_members')
+    readonly_fields = ('list_members',)
+    search_fields = ('name',)
+
+    def user_count(self, obj):
+        return obj.user_set.count()
+    user_count.short_description = 'Number of Members'
+
+    def list_members(self, obj):
+        users = obj.user_set.all()
+        return ", ".join([u.username for u in users]) if users else "No members"
+    list_members.short_description = 'Members'
+
+# Substitui o Group admin padrão
+admin.site.unregister(Group)
+admin.site.register(Group, GroupAdminWithMembers)
