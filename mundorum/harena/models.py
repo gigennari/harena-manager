@@ -1,3 +1,5 @@
+#Mundorum Harena - Models for the Django application
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
@@ -9,6 +11,26 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from django.contrib.postgres.fields import JSONField
 from django.db.models import JSONField
+
+# User roles in the system
+ROLE_CHOICES = [
+        ('guest', 'Guest'), #Any email domain can register as a guest
+        ('student', 'Student'), #Must use institution email domain
+        ('professor', 'Professor'), #Must use institution email domain
+    ]
+
+# Group choices for Quest permissions
+# These groups are created automatically when a Quest is created.   
+GROUP_CHOICES = [
+        ('viewer', 'Viewer'), # can view the Quest
+        ('author', 'Author'), # can add cases to the Quest
+        ('editor', 'Editor'), # can add, remove and reorder cases in the Quest
+    ]
+
+#Quest owners can deleted the Quest itself, but not the cases inside it.
+
+#Only a case owner can edit or delete the case
+
 
 
 class Institution(models.Model):
@@ -59,13 +81,6 @@ class ProfessorInviteToken(models.Model):
 # A Person is a User with additional fields like Google ID, profile picture, birth date, institution, role.
 class Person(models.Model):
 
-    ROLE_CHOICES = [
-        ('guest', 'Guest'),
-        ('student', 'Student'),
-        ('professor', 'Professor'),
-    ]
-
-
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -110,7 +125,9 @@ class Quest(models.Model):
         # Automatically add the owner to the quest's group
         viewers_group, _ = Group.objects.get_or_create(name=f"viewers_{self.id}")
         authors_group, _ = Group.objects.get_or_create(name=f"authors_{self.id}")
-        self.owner.user.groups.add(viewers_group, authors_group)
+        editors_group, _ = Group.objects.get_or_create(name=f"editors_{self.id}")
+
+        self.owner.user.groups.add(viewers_group, authors_group, editors_group)
 
     def __str__(self):
         return f"{self.name} ({self.institution.name})" 
@@ -175,22 +192,29 @@ class QuestCase(models.Model):
     
 
 class QuestAccessToken(models.Model):
-    VARIANT_CHOICES = [
-        ('viewer_existing', 'Viewer (Existing User)'),
-        ('author_existing', 'Author (Existing User)'),
-        ('viewer_guest', 'Viewer (Guest - Not Registered)'),
-    ]
 
     token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     quest = models.ForeignKey('Quest', on_delete=models.CASCADE, related_name='access_tokens')
-    variant = models.CharField(max_length=20, choices=VARIANT_CHOICES)
+    
+    # The role of the user who can use this token. 
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='guest')
+    # The quest group a user who uses this token will belong to -> control quest permisisons
+    group = models.CharField(max_length=20, choices=GROUP_CHOICES, default='viewer')
+    
+    # Expiration
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
-    is_used_once = models.BooleanField(default=False)  # opcional
+
+    # Usage limits and tracking 
+    max_uses = models.PositiveIntegerField(null=True, blank=True)
     used_by = models.ManyToManyField('Person', blank=True)
 
     def is_valid(self):
-        return timezone.now() < self.expires_at
-
+        not_expired = timezone.now() < self.expires_at
+        within_limit = (
+            self.max_uses is None or
+            self.used_by.count() < self.max_uses
+        )
+        return not_expired and within_limit
     def __str__(self):
-        return f"{self.get_variant_display()} Token for Quest {self.quest.name}"
+        return f"{self.group.capitalize()} Token for Quest {self.quest.name} ({self.role})"

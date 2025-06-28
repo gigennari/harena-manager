@@ -134,23 +134,24 @@ class GoogleAuthView(APIView):
 
                     quest = token.quest
 
-                    # Assign institution if person has none
+                    # Se o token exige que o usuário já exista
+                    if created and token.role == 'other':
+                        return Response({'error': 'This token is only valid for existing users'}, status=403)
+
+                    # Se o usuário for novo e o token permitir 'guest', define o role como guest
+                    if created and token.role == 'guest':
+                        person.role = 'guest'
+
+                    # Atribui instituição se ainda não tiver
                     if person.institution is None:
                         person.institution = quest.institution
 
-                    if token.variant == 'viewer_guest':
-                        person.role = 'guest'
-                        person.save()
-                        quest.viewers.add(person)
+                    person.save()
 
-                    elif token.variant == 'viewer_existing':
-                        person.save()
-                        quest.viewers.add(person)
-
-                    elif token.variant == 'author_existing':
-                        person.save()
-                        quest.viewers.add(person)
-                        quest.authors.add(person)
+                    # Adiciona o user ao grupo (viewer/author/editor)
+                    group_name = f"{token.group}s_{quest.id}"  # ex: viewers_xx
+                    group = Group.objects.get(name=group_name)
+                    group.user_set.add(user)
 
                     token.used_by.add(person)
                     token.save()
@@ -214,6 +215,8 @@ class UserView(APIView):
             'picture': user.person.profile_picture if hasattr(user, 'person') else None
         })
 
+
+
 # Helper function to check if a user can view a quest
 def user_can_view_quest(user, quest):
     person = user.person
@@ -222,8 +225,21 @@ def user_can_view_quest(user, quest):
     return (
         quest.owner == person or
         (quest.visible_to_institution and quest.institution == person.institution) or
-        f"viewers_{quest.id}" in group_names or
-        f"authors_{quest.id}" in group_names
+        any(g in group_names for g in [
+            f"viewers_{quest.id}",
+            f"authors_{quest.id}",
+            f"editors_{quest.id}",
+        ])
+    )
+
+def user_can_add_cases_to_quest(user, quest):
+    person = user.person
+    group_names = user.groups.values_list('name', flat=True)
+
+    return (
+        quest.owner == person or
+        f"authors_{quest.id}" in group_names or
+        f"editors_{quest.id}" in group_names
     )
 
 # Helper function to check if a user can edit a quest
@@ -232,8 +248,17 @@ def user_can_edit_quest(user, quest):
     group_names = user.groups.values_list('name', flat=True)
     return (
         quest.owner == person or
-        f"authors_{quest.id}" in group_names
+        f"editors_{quest.id}" in group_names
     )
+
+def can_delete_quest(user, quest):
+    person = user.person
+    group_names = user.groups.values_list('name', flat=True)
+    return (
+        quest.owner == person
+    )
+
+
 
 #Lists all quests that the user can view, either by being the owner, part of the institution, or via group membership.
 class QuestListView(APIView):
@@ -311,7 +336,7 @@ class AddCaseToQuestView(APIView):
         except Quest.DoesNotExist:
             return Response({'error': 'Quest not found'}, status=404)
 
-        if not user_can_edit_quest(request.user, quest):
+        if not user_can_add_cases_to_quest(request.user, quest):
             return Response({'error': 'You do not have permission to add cases to this quest'}, status=403)
 
         case_id = request.data.get('case_id')
@@ -331,7 +356,7 @@ class AddCaseToQuestView(APIView):
     
 
 # Remove a case from a quest
-class RemoveCaseFromQuestView(APIView):
+class RemoveCaseToQuestView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -351,6 +376,7 @@ class RemoveCaseFromQuestView(APIView):
 
         QuestCase.objects.filter(quest=quest, case=case).delete()
         return Response({'success': f'Case {case.name} removed from quest {quest.name}'}, status=200)
+
 
 
 #Create a Quest Acess Token 
@@ -375,10 +401,22 @@ class CreateQuestAccessTokenView(APIView):
 
         expires_at = timezone.now() + timedelta(days=int(expires_in_days))
 
+        role = request.data.get('role')  # ex: 'guest' ou 'other'
+        group = request.data.get('group')  # ex: 'viewer', 'author', 'editor'
+
+        if role not in dict(QuestAccessToken._meta.get_field('role').choices).keys():
+            return Response({'error': 'Invalid role'}, status=400)
+
+        if group not in dict(QuestAccessToken._meta.get_field('group').choices).keys():
+            return Response({'error': 'Invalid group'}, status=400)
+        
+        
         token = QuestAccessToken.objects.create(
             quest=quest,
-            variant=variant,
-            expires_at=expires_at
+            role=role,
+            group=group,
+            expires_at=expires_at,
+            max_uses=request.data.get('max_uses')
         )
 
         link = f"{settings.CLIENT_URL}/invite/quest/{token.token}/"
@@ -407,14 +445,10 @@ class UseQuestAccessTokenView(APIView):
             quest = token.quest
             person = request.user.person
 
-            if token.variant == 'viewer_existing':
-                quest.viewers.add(person)
+            group_name = f"{token.group}s_{quest.id}"
+            group = Group.objects.get(name=group_name)
+            group.user_set.add(person.user)
 
-            elif token.variant == 'author_existing':
-                quest.authors.add(person)
-
-            elif token.variant == 'viewer_guest':
-                quest.viewers.add(person)
 
             token.used_by.add(person)
             token.save()

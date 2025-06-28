@@ -114,15 +114,26 @@ class CaseAdmin(admin.ModelAdmin):
 
 @admin.register(QuestAccessToken)
 class QuestAccessTokenAdmin(admin.ModelAdmin):
-    list_display = ('token', 'quest', 'variant', 'expires_at', 'created_at', 'is_valid', 'used_count')
-    list_filter = ('variant', 'quest')
+    list_display = ('token', 'quest', 'role', 'group', 'expires_at', 'max_uses', 'created_at', 'is_valid_display', 'used_count')
+    list_filter = ('role', 'group', 'quest')
     search_fields = ('token',)
-
     readonly_fields = ('created_at',)
 
     def used_count(self, obj):
         return obj.used_by.count()
+    
     used_count.short_description = 'Used by (count)'
+
+    def used_count(self, obj):
+        return obj.used_by.count()
+    used_count.short_description = 'Used by (count)'
+
+    def is_valid_display(self, obj):
+        return obj.is_valid()
+    
+    is_valid_display.boolean = True
+    is_valid_display.short_description = 'Is Valid?'
+
 
     def save_model(self, request, obj, form, change):
         if not obj.expires_at:
