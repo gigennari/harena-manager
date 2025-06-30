@@ -20,7 +20,7 @@ class InstitutionDomainInline(admin.TabularInline):
 
 @admin.register(Institution)
 class InstitutionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'active')
+    list_display = ('name', 'active', 'owner')
     inlines = [InstitutionDomainInline]
 
     change_form_template = "admin/harena/institution/change_form.html"
@@ -49,7 +49,6 @@ class ProfessorInviteTokenAdmin(admin.ModelAdmin):
 
 
     list_display = ('token', 'institution', 'email', 'expires_at', 'created_at', 'is_valid', 'is_used')
-    readonly_fields = ('token', 'created_at', 'expires_at', 'is_valid', 'is_used')
     list_filter = ('institution',)
     search_fields = ('token', 'email')
 

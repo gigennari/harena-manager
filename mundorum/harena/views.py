@@ -16,6 +16,7 @@ from .serializers import QuestSerializer,CaseSerializer
 from django.core.mail import send_mail
 from datetime import timedelta
 from django.utils import timezone
+from .serializers import PersonSerializer, InstitutionSerializer, ProfessorInviteTokenSerializer 
 
 def send_invite_email(professor_invite_token):
 
@@ -171,22 +172,19 @@ class GoogleAuthView(APIView):
                     return Response({'error': str(e)}, status=403)
 
                 person.institution = institution
-                person.role = 'student'
+                if not person.role:
+                    person.role = 'student'
                 person.save()
 
             # Create or get authentication token
             token, created = Token.objects.get_or_create(user=user)
 
             return Response({
+                
                 'token': token.key,
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'name': f"{user.first_name} {user.last_name}".strip(),
-                    'picture': person.profile_picture,
-                    'institution': person.institution.name if person.institution else None,
-                    'role': person.role
-                }
+                'user': PersonSerializer(person).data,
+                "institution": InstitutionSerializer(person.institution).data,
+
             })
 
         except ValueError:
@@ -316,12 +314,10 @@ class QuestCasesView(APIView):
         except Quest.DoesNotExist:
             return Response({'error': 'Quest not found'}, status=404)
 
-        # Verifica se o usuário pode ver essa quest
-        if not user_can_view_quest(request.user, quest):
-            return Response({'error': 'You do not have permission to view this quest'}, status=403)
 
-        # Lista os cases associados à quest
-        cases = quest.quest_cases.all()
+        # Lista cases associated with the quest
+        quest_cases = quest.quest_cases.select_related('case').all()
+        cases = [qc.case for qc in quest_cases]
         serializer = CaseSerializer(cases, many=True)
         return Response(serializer.data)
     
@@ -457,3 +453,113 @@ class UseQuestAccessTokenView(APIView):
 
         except QuestAccessToken.DoesNotExist:
             return Response({'error': 'Invalid Token'}, status=400)
+        
+
+class CreateQuestView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        person = request.user.person
+
+        if person.role != 'professor' and not person.institution:
+            return Response({'error': 'Only professors or institution owners can create quests.'}, status=403)
+
+        name = request.data.get('name')
+        visible = request.data.get('visible_to_institution', False)
+
+        if not name:
+            return Response({'error': 'Name is required.'}, status=400)
+
+        quest = Quest.objects.create(
+            name=name,
+            institution=person.institution,
+            owner=person,
+            visible_to_institution=visible
+        )
+
+        return Response({
+            'id': str(quest.id),
+            'name': quest.name,
+            'visible_to_institution': quest.visible_to_institution,
+            'institution': str(quest.institution.id),
+            'created_at': quest.created_at
+        }, status=201)
+    
+
+class CreateCaseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            person = request.user.person
+            mutable_data = request.data.copy()
+            mutable_data['case_owner'] = str(person.pk)
+
+            serializer = CaseSerializer(data=mutable_data)
+
+            print(f"Creating case for {person.user.username} with data: {mutable_data}")
+            print(f"Files: {request.FILES}")
+            if serializer.is_valid():
+                case = serializer.save()
+
+                quest_id = mutable_data.get('quest_id')
+                if quest_id:
+                    try:
+                        quest = Quest.objects.get(id=quest_id)
+                        # ... (o resto da sua lógica)
+                    except Quest.DoesNotExist:
+                        return Response(
+                            {"error": "Quest not found."},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+
+                return Response(CaseSerializer(case).data, status=status.HTTP_201_CREATED)
+            else:
+                print(f"Case creation failed for {person.user.username} with errors: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Imprima a exceção para o console do servidor
+            print(f"An unexpected error occurred: {e}")
+            return Response(
+                {"error": "An internal server error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class InviteProfessorView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        person = request.user.person 
+
+        if not email:
+            return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+
+        if person.pk != person.institution.owner.pk:
+            return Response({"error": "Only institution owners can invite professors."}, status=status.HTTP_403_FORBIDDEN)
+            
+        if User.objects.filter(email=email).exists():
+            return Response({"error": "A user with this email already exists."}, status=status.HTTP_409_CONFLICT)
+        
+        
+        try:
+            expires_in_days = int(request.data.get('expires_in_days', 7))
+
+            invite_token_obj = ProfessorInviteToken.objects.create(
+                email=email,
+                institution=person.institution,
+                expires_at=timezone.now() + timedelta(days=expires_in_days)
+            )
+            
+            send_invite_email(invite_token_obj)
+            
+            return Response({"message": f"Invitation sent to {email} successfully."}, status=status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            print(f"Error creating invite token: {e}")
+            return Response({"error": "Could not send invitation."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        

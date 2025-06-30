@@ -8,6 +8,9 @@ from .views import (
     RemoveCaseFromQuestView,
     UseQuestAccessTokenView,
     CreateQuestAccessTokenView,
+    CreateQuestView,
+    CreateCaseView,
+    InviteProfessorView
 )
 
 urlpatterns = [
@@ -15,13 +18,20 @@ urlpatterns = [
     path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
     path('user/', UserView.as_view(), name='user'),
 
+    # Professor invite token management
+    path('api/invite/professor/', InviteProfessorView.as_view(), name='invite-professor'),
+
     # Quest access via token
     path('api/quest-access-token/', CreateQuestAccessTokenView.as_view(), name='create-quest-token'),
     path('api/use-quest-token/', UseQuestAccessTokenView.as_view(), name='use-quest-token'),
 
     # Quest management
-    path('api/quests/', QuestListView.as_view(), name='quest-list'),
-    path('api/quests/<uuid:quest_id>/cases/', QuestCasesView.as_view(), name='quest-cases'),
-    path('api/quests/<uuid:quest_id>/cases/add/', AddCaseToQuestView.as_view(), name='add-case-to-quest'),
-    path('api/quests/<uuid:quest_id>/cases/<uuid:case_id>/remove/', RemoveCaseFromQuestView.as_view(), name='remove-case-from-quest'),
+    path('api/quests/create/', CreateQuestView.as_view(), name='create-quest'), #VCeating a quest
+    path('api/quests/', QuestListView.as_view(), name='quest-list'), # List all quests a user can access
+    path('api/quests/<uuid:quest_id>/cases/', QuestCasesView.as_view(), name='quest-cases'), # List cases in a quest
+    path('api/quests/<uuid:quest_id>/cases/add/', AddCaseToQuestView.as_view(), name='add-case-to-quest'), # Add a case to a quest
+    path('api/quests/<uuid:quest_id>/cases/<uuid:case_id>/remove/', RemoveCaseFromQuestView.as_view(), name='remove-case-from-quest'), # Remove a case from a quest
+
+    #Case management
+    path('api/cases/create/', CreateCaseView.as_view(), name='create-case'),
 ]

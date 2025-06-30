@@ -38,6 +38,7 @@ class Institution(models.Model):
     name = models.CharField(max_length=100, unique=True)
     active = models.BooleanField(default=True)  # flag to indicate if the institution is active or not
     active_updated_at = models.DateTimeField(auto_now=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='institutions_owned', null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if self.pk:  
