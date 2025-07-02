@@ -17,6 +17,7 @@ from django.core.mail import send_mail
 from datetime import timedelta
 from django.utils import timezone
 from .serializers import PersonSerializer, InstitutionSerializer, ProfessorInviteTokenSerializer 
+from django.db import transaction
 
 def send_invite_email(professor_invite_token):
 
@@ -562,4 +563,33 @@ class InviteProfessorView(APIView):
         except Exception as e:
             print(f"Error creating invite token: {e}")
             return Response({"error": "Could not send invitation."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+
+# Lists all cases owned by the user
+class UserCaseListView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        person = request.user.person
+        cases = Case.objects.filter(case_owner=person).order_by('name')
+        serializer = CaseSerializer(cases, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class QuestDetailView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, quest_id):
+        try:
+            quest = Quest.objects.get(id=quest_id)
+        except Quest.DoesNotExist:
+                return Response({"error": "Quest not found."}, status=status.HTTP_400_BAD_REQUEST)
+            
+
+        if not user_can_view_quest(request.user, quest):
+            return Response({'error': 'You do not have permission to view this quest'}, status=403)
+
+        serializer = QuestSerializer(quest)
+        return Response(serializer.data)
