@@ -6,7 +6,7 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from .views import send_invite_email
 from django.conf import settings
-from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestViewerInviteToken, QuestCase, Case, QuestAccessToken
+from .models import Person, Institution, InstitutionDomain, ProfessorInviteToken, Quest, QuestCase, Case, QuestAccessToken
 from django.contrib.auth.models import Group
 from django.contrib.auth.admin import GroupAdmin as DefaultGroupAdmin
 from django import forms

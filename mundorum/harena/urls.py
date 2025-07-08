@@ -12,7 +12,10 @@ from .views import (
     CreateCaseView,
     InviteProfessorView,
     UserCaseListView,
-    QuestDetailView
+    QuestDetailView,
+    EditableQuestListView,
+    CaseDetailView,
+    QuestAccessTokenListView,
 )
 
 urlpatterns = [
@@ -34,8 +37,12 @@ urlpatterns = [
     path('api/quests/<uuid:quest_id>/cases/', QuestCasesView.as_view(), name='quest-cases'), # List cases in a quest
     path('api/quests/<uuid:quest_id>/cases/add/', AddCaseToQuestView.as_view(), name='add-case-to-quest'), # Add a case to a quest
     path('api/quests/<uuid:quest_id>/cases/<uuid:case_id>/remove/', RemoveCaseFromQuestView.as_view(), name='remove-case-from-quest'), # Remove a case from a quest
+    path('api/quests/editable/', EditableQuestListView.as_view(), name='editable-quest-list'), # Get quests a user can edit
+    path('api/quests/<uuid:quest_id>/access-tokens/', QuestAccessTokenListView.as_view(), name='quest-access-token-list'),
+
 
     #Case management
     path('api/cases/create/', CreateCaseView.as_view(), name='create-case'),
-    path('api/cases/my/', UserCaseListView.as_view(), name='my-cases'),
+    path('api/cases/mycases/', UserCaseListView.as_view(), name='my-cases'),
+    path('api/cases/<uuid:pk>/', CaseDetailView.as_view(), name='case-detail'), 
 ]

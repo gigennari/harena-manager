@@ -132,19 +132,6 @@ class Quest(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.institution.name})" 
-
-# Token for inviting users to view a Quest, with an expiration date
-class QuestViewerInviteToken(models.Model):
-    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    quest = models.ForeignKey('Quest', on_delete=models.CASCADE, related_name='viewer_tokens')
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-
-    def is_valid(self):
-        return timezone.now() < self.expires_at
-
-    def __str__(self):
-        return f"Token for {self.quest.name} - Expires at {self.expires_at.strftime('%d/%m/%Y %H:%M')}"
     
   
 

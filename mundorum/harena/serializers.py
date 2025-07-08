@@ -1,16 +1,8 @@
 from rest_framework import serializers
-from .models import Quest, QuestCase, Case, Institution, Person, User, ProfessorInviteToken
+from .models import Quest, QuestCase, Case, Institution, Person, User, ProfessorInviteToken, QuestAccessToken
 from django.contrib.auth.models import Group
 
-
-class CaseSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Case
-        fields = [
-            'id', 'name', 'description', 'content', 'answer', 'possible_answers',
-            'created_at', 'case_owner', 'image', 'complexity', 'specialty'
-        ]
-        read_only_fields = ['id', 'created_at']
+   
 
 class QuestSerializer(serializers.ModelSerializer):
     institution_name = serializers.CharField(source='institution.name', read_only=True)
@@ -65,3 +57,44 @@ class ProfessorInviteTokenSerializer(serializers.ModelSerializer):
         model = ProfessorInviteToken
         fields = ['email', 'institution', 'token']
         read_only_fields = ['token']
+
+class CaseSerializer(serializers.ModelSerializer):
+    quests = serializers.SerializerMethodField()
+    case_owner = PersonSerializer(read_only=True)
+
+    class Meta:
+        model = Case
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'case_owner']
+
+    def get_quests(self, obj):
+        quests = [qc.quest for qc in obj.quest_cases.all()]
+        return QuestSerializer(quests, many=True).data
+    
+    def get_complexity_choices(self, obj):
+        return Case.COMPLEXITY_CHOICES
+    
+
+class QuestAccessTokenSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the QuestAccessToken model.
+    Handles serialization and deserialization of Quest Access Tokens.
+    """
+    class Meta:
+        model = QuestAccessToken
+        fields = [
+            'token',        # The UUID token itself
+            'quest',        # The ID of the associated Quest
+            'role',         # The role assigned by this token (guest, student, professor)
+            'group',        # The group assigned by this token (viewer, author, editor)
+            'max_uses',     # Maximum number of times this token can be used
+            'expires_at',   # The date and time when this token expires
+            'created_at',   # When the token was created (read-only)
+            'used_by',      # Users who have used this token (read-only, M2M field)
+            'used_by_count', # Custom field to count how many users have used this token
+        ]
+        read_only_fields = ['token', 'created_at', 'used_by', 'used_by_count'] # Token and created_at are auto-generated/managed by Django
+                                                              # used_by is managed via the UseQuestAccessTokenView
+
+        def get_used_by_count(self, obj):
+            return obj.used_by.count()                                                      
