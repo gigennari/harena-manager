@@ -34,7 +34,7 @@ This document describes the **entitlement and access model** for the Jacinto Bem
 | `user`          | Django user reference                        |
 | `email`         | Email address                                |
 | `name`          | Full name                                    |
-| `role`          | One of: `owner`, `professor`, `student`, `guest` |
+| `role`          | One of: `professor`, `student`, `guest` |
 | `institution`   | Institution the user belongs to              |
 | `google_id`     | Google account ID                            |
 | `profile_picture`| URL of the profile picture                  |
