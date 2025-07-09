@@ -66,11 +66,14 @@ class GoogleAuthView(APIView):
     @staticmethod
     def check_institution_valid(institution):
         if institution is None:
-            raise PermissionDenied("This email domain is not registered to any institution.") # Use PermissionDenied for 403
+            # Raise an exception that post() can specifically catch and turn into a 403
+            raise ValueError("This email domain is not registered to any institution.") 
         if not institution.active:
-            return Response({'error': 'This institution is currently inactive.'}, status=status.HTTP_403_FORBIDDEN) # Replaced with Response
+            # Raise an exception for inactive institution
+            raise ValueError("This institution is currently inactive.")
 
     def post(self, request):
+        print("Received Google authentication request with data:", request.data)
         google_token = request.data.get('token')
         professor_invite_token = request.data.get('invite_token', None)
         quest_invite_token = request.data.get('quest_invite_token', None)

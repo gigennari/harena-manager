@@ -238,14 +238,13 @@ The following are the main API endpoints exposed by the backend.
 ### Key React Components
 
 | Component | Description |
-| :-------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| `App.jsx` | The root component that sets up the application's routing using `react-router-dom`. |
-| `Login.jsx` | The main landing and login page. Handles Google authentication and token-based invites. |
-| `Quests.jsx` | Displays a list of all quests available to the current user. |
-| `QuestCases.jsx` | The "player" interface where users interact with the cases within a specific quest. |
-
-| `QuestEditor.jsx` | An administrative interface for quest owners/editors to manage a quest's details and its associated cases. |
-| `InviteToQuest.jsx` | A form for quest owners/editors to generate new `QuestAccessToken`s to invite others. |
+| :-------------------- | :---------------------------------------------------------------------------------------------------------------------      |
+| `App.jsx` | The root component that sets up the application's routing using `react-router-dom`.                                                     |
+| `Login.jsx` | The main landing and login page. Handles Google authentication and token-based invites.                                               |
+| `Quests.jsx` | Displays a list of all quests available to the current user.                                                                         |
+| `QuestCases.jsx` | The "player" interface where users interact with the cases within a specific quest.                                              |
+| `QuestEditor.jsx` | An administrative interface for quest owners/editors to manage a quest's details and its associated cases.                      |  
+| `InviteToQuest.jsx` | A form for quest owners/editors to generate new `QuestAccessToken`s to invite others.                                         |
 | `SeeInvitations.jsx` | A view for quest owners/editors to see all active invitation tokens, their usage, and expiration dates for a specific quest. |
 | `QuestInviteRedirect.jsx` | A simple component that handles the redirect flow for users who click a quest invitation link, sending them to the login page. |
 
@@ -258,6 +257,7 @@ The following are the main API endpoints exposed by the backend.
   * **User Login and Registration Flow**
 
       * *Video/GIF of a new institutional user logging in for the first time.*
+      * *Video/GIF of a professor user using a professor invite link.*
       * *Video/GIF of a guest user using a quest invite link.*
 
   * **Quest Creation and Management**
@@ -270,15 +270,15 @@ The following are the main API endpoints exposed by the backend.
       * *Screenshot of the 'Invite to Quest' form.*
       * *Screenshot of the 'See All Invitations' page.*
 
+* **Creating and Editing Cases**
+
+    * *Screenshot of the 'Create a Case' form.*
+    * *Screenshot of the 'All My Cases' page.*
+    * *Screenshot of how to edit a case on 'All My Cases' page.*
+
 
 <!-- end list -->
 
-
----
-
-## 📍 To Do (before final delivery)
-
--
 
 ---
 
@@ -287,7 +287,7 @@ The following are the main API endpoints exposed by the backend.
 Jacinto Bemelhor is developed by the Harena Lab — Unicamp.
 
 Maintained by: @santanche\
-Access Model implemented by @gigennari\
+Access Model implemented by: @gigennari
 
 ---
 
