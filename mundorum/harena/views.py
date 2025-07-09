@@ -58,7 +58,7 @@ class GoogleAuthView(APIView):
         domain = email.split('@')[-1]
         try:
             # Assuming InstitutionDomain.domain is the field storing the domain
-            institution_domain = InstitutionDomain.objects.get(domain=domain)
+            institution_domain = InstitutionDomain.objects.get(name=domain)
             return institution_domain.institution
         except InstitutionDomain.DoesNotExist:
             return None
@@ -229,8 +229,9 @@ class GoogleAuthView(APIView):
             return Response({
                 'token': drf_token.key,
                 'person': PersonSerializer(person).data,
-                "institution": InstitutionSerializer(person.institution).data if person.institution else None,
-            }, status=status.HTTP_200_OK)
+                "institution": InstitutionSerializer(person.institution).data,
+            })
+
 
         except ValueError:
             return Response({'error': 'Invalid Google token'}, status=status.HTTP_401_UNAUTHORIZED)
