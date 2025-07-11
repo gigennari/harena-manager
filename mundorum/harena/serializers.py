@@ -60,7 +60,7 @@ class ProfessorInviteTokenSerializer(serializers.ModelSerializer):
 
 class CaseSerializer(serializers.ModelSerializer):
     quests = serializers.SerializerMethodField()
-    case_owner = PersonSerializer(read_only=True)
+    case_owner = serializers.CharField(source='owner.user.get_full_name', read_only=True)
 
     class Meta:
         model = Case

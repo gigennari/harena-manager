@@ -21,7 +21,9 @@ from django.db import transaction
 from django.core.exceptions import PermissionDenied
 import uuid
 import re
+import json
 import logging
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -730,7 +732,7 @@ class CreateCaseView(APIView):
             print(f"Creating case for {person.user.username} with data: {mutable_data}")
             print(f"Files: {request.FILES}")
             if serializer.is_valid():
-                case = serializer.save()
+                case = serializer.save(case_owner=person)
 
                 quest_id = mutable_data.get('quest_id')
                 if quest_id:
@@ -898,6 +900,7 @@ class QuestAccessTokenListView(APIView):
         
         user = request.user
         person = user.person 
+        logger.debug(f"QUEST ACCESS TOKEN LIST: Received GET request for Quest ID: {quest_id}. User: {user.username} (ID: {user.id})")
 
         try:
             quest = Quest.objects.get(id=quest_id)
@@ -905,7 +908,10 @@ class QuestAccessTokenListView(APIView):
             
             return Response({'error': 'Quest not found.'}, status=status.HTTP_404_NOT_FOUND)
        
-        is_owner = quest.owner == person
+        is_owner = (quest.owner == person)
+        print(f"DEBUG: User '{user.username}' (ID: {user.id}) is owner: {is_owner}")
+        
+        
         is_editor_group = user.groups.filter(name=f'editors_{quest_id}').exists()
 
         if not (is_owner or is_editor_group):
