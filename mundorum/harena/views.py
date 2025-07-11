@@ -908,9 +908,9 @@ class QuestAccessTokenListView(APIView):
             
             return Response({'error': 'Quest not found.'}, status=status.HTTP_404_NOT_FOUND)
        
-        is_owner = (quest.owner == person)
-        print(f"DEBUG: User '{user.username}' (ID: {user.id}) is owner: {is_owner}")
-        
+        is_owner = False
+        if (quest.owner.pk == request.user.person.pk):
+            is_owner = True
         
         is_editor_group = user.groups.filter(name=f'editors_{quest_id}').exists()
 
