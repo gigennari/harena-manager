@@ -191,11 +191,11 @@ https://clienturl.com/invite/quest/<token>
 
 ### 🧬 Database Model Schema
 
-The database schema is defined in `harena/models.py`. The diagram below provides a visual overview of the models and their relationships.
+The database schema is defined in [`models.py`](mundorum/harena/models.py). The diagram below provides a visual overview of the models and their relationships.
 
-**Schema Diagram Path:** `harena-manager/mundorum/schema_clean.png`
+**Schema Diagram Path:** 
 
-![Model Schema](schema_clean.png)
+![Model Schema](mundorum/schema_clean.png)
 
 
 
@@ -208,11 +208,11 @@ The database schema is defined in `harena/models.py`. The diagram below provides
 
 | File | Description |
 | :--- | :--- |
-| `views.py` | Contains the core application logic for handling API requests. This includes user authentication, creating quests, managing tokens, etc. |
-| `models.py` | Defines the database schema, including all tables, fields, and relationships. |
-| `serializers.py` | Defines how complex data types, like model instances, are converted to and from JSON for API communication. |
-| `urls.py` | Maps URL endpoints to their corresponding views in `views.py`. |
-| `admin.py` | Configures the Django admin interface for managing the application's data. |
+| [`views.py`](mundorum/harena/views.py) | Contains the core application logic for handling API requests. This includes user authentication, creating quests, managing tokens, etc. |
+| [`models.py`](mundorum/harena/models.py) | Defines the database schema, including all tables, fields, and relationships. |
+| [`serializers.py`](mundorum/harena/serializers.py) | Defines how complex data types, like model instances, are converted to and from JSON for API communication. |
+| [`urls.py`](mundorum/harena/urls.py) | Maps URL endpoints to their corresponding views in `views.py`. |
+| [`admin.py`](mundorum/harena/admin.py) | Configures the Django admin interface for managing the application's data. |
 
 ### API Endpoints
 
@@ -221,14 +221,21 @@ The following are the main API endpoints exposed by the backend.
 | Method | URL Pattern | View Name | Description |
 | :------- | :------------------------------------------- | :--------------------------- | :------------------------------------------------------------------- |
 | **POST** | `/auth/google/` | `GoogleAuthView` | Handles user login and registration using a Google ID token. Also processes `ProfessorInviteToken` and `QuestAccessToken` if provided. |
-| **GET** | `/api/user/` | `UserView` | Retrieves the profile information for the currently authenticated user. |
+| **GET** | `/user/` | `UserView` | Retrieves the profile information for the currently authenticated user. |
+| **POST** | `/api/invite/professor/` | `InviteProfessorView` | Creates and sends a new `ProfessorInviteToken` via email. |
+| **POST** | `/api/quest-access-token/` | `CreateQuestAccessTokenView` | Creates a new `QuestAccessToken` to invite users to a quest. |
+| **POST** | `/api/use-quest-token/` | `UseQuestAccessTokenView` | Allows a user to use a `QuestAccessToken` to gain access to a quest. |
+| **GET** | `/api/quests/<uuid:quest_id>/` | `QuestDetailView` | Retrieves details for a specific quest. |
 | **POST** | `/api/quests/create/` | `CreateQuestView` | Creates a new quest. |
 | **GET** | `/api/quests/` | `QuestListView` | Lists all quests visible to the authenticated user. |
-| **GET** | `/api/quests/<uuid:quest_id>/` | `QuestDetailView` | Retrieves details for a specific quest. |
 | **GET** | `/api/quests/<uuid:quest_id>/cases/` | `QuestCasesView` | Lists all cases associated with a specific quest. |
-| **POST** | `/api/quest-access-token/` | `CreateQuestAccessTokenView` | Creates a new `QuestAccessToken` to invite users to a quest. |
+| **POST** | `/api/quests/<uuid:quest_id>/cases/add/` | `AddCaseToQuestView` | Adds a case to a quest. |
+| **DELETE** | `/api/quests/<uuid:quest_id>/cases/<uuid:case_id>/remove/` | `RemoveCaseFromQuestView` | Removes a case from a quest. |
+| **GET** | `/api/quests/editable/` | `EditableQuestListView` | Gets quests a user can edit. |
 | **GET** | `/api/quests/<uuid:quest_id>/access-tokens/` | `QuestAccessTokenListView` | Lists all active invitation tokens for a specific quest. |
-
+| **POST** | `/api/cases/create/` | `CreateCaseView` | Creates a new case. |
+| **GET** | `/api/cases/mycases/` | `UserCaseListView` | Lists all cases created by the authenticated user. |
+| **GET, PUT/PATCH, DELETE** | `/api/cases/<uuid:pk>/` | `CaseDetailView` | Retrieves details for a specific case. |
 
 
 ---
@@ -244,37 +251,60 @@ The following are the main API endpoints exposed by the backend.
 | `Quests.jsx` | Displays a list of all quests available to the current user.                                                                         |
 | `QuestCases.jsx` | The "player" interface where users interact with the cases within a specific quest.                                              |
 | `QuestEditor.jsx` | An administrative interface for quest owners/editors to manage a quest's details and its associated cases.                      |  
+| `CreateQuest.jsx` | A form for professors to create new `Quests`.  
 | `InviteToQuest.jsx` | A form for quest owners/editors to generate new `QuestAccessToken`s to invite others.                                         |
 | `SeeInvitations.jsx` | A view for quest owners/editors to see all active invitation tokens, their usage, and expiration dates for a specific quest. |
 | `QuestInviteRedirect.jsx` | A simple component that handles the redirect flow for users who click a quest invitation link, sending them to the login page. |
+| `CreateCase.jsx` | A form component that allows users to create new clinical cases, including entering case details and submitting them to the backend. |
+| `MyCases.jsx` | Displays a list of all clinical cases created by the current user, in a published or draft state, allowing them to view, edit, delete or manage their own cases. |
+| `InviteProfessor.jsx` | Allows institution owners to generate professor invitation links and automatically send them via email. |
+
 
 -----
 
-## 🖼️ UI Walkthroughs (To Be Added)
 
-*(This section is a placeholder for screenshots and video demonstrations of the application's user interface and key workflows.)*
+## 🖼️ UI Walkthroughs
 
-  * **User Login and Registration Flow**
+* **User Login and Registration Flow**
+    * *Video/GIF of a new institutional user logging in for the first time. (TBD)*
+    ![]()
+    * *Video/GIF of a professor user using a professor invite link. (TBD)*
+    ![]()
+    * *Video/GIF of a guest user using a quest invite link.(TBD)*
+    ![]()
 
-      * *Video/GIF of a new institutional user logging in for the first time.*
-      * *Video/GIF of a professor user using a professor invite link.*
-      * *Video/GIF of a guest user using a quest invite link.*
+* **Generating and Using Invite Links**
+    * Inviting a Professor:
+        ![](frontendscreenshots/inviteaprofessor.png)
+    * Inviting to Quest:
+        ![](frontendscreenshots/invitetoquest.png)
+    * *Screenshot of the 'See All Invitations' page. (TBD)*
 
-  * **Quest Creation and Management**
+* **Quest Creation and Management**
+    * Creating a Quest:
+        ![](frontendscreenshots/createaquest.png)
+    * New Quest Created:
+    ![](frontendscreenshots/newquestcreated.png)
+    * Editing a Quest:
+        ![](frontendscreenshots/editingaquest.png)
 
-      * *Screenshot of the 'Create Quest' form.*
-      * *Screenshot of the 'Quest Editor' interface, showing how to add/remove cases.*
 
-  * **Generating and Using Invite Links**
-
-      * *Screenshot of the 'Invite to Quest' form.*
-      * *Screenshot of the 'See All Invitations' page.*
 
 * **Creating and Editing Cases**
-
-    * *Screenshot of the 'Create a Case' form.*
-    * *Screenshot of the 'All My Cases' page.*
-    * *Screenshot of how to edit a case on 'All My Cases' page.*
+    * Creating a Case:
+        ![](frontendscreenshots/createacase.png)
+    * My Cases:
+        ![](frontendscreenshots/mycases.png)
+    * Editing a Case:
+        ![](frontendscreenshots/editingacase.png)
+    * New Ped Case:
+        ![](frontendscreenshots/newpedcase.png)
+    * Publishing a Case:
+        ![](frontendscreenshots/publishingacase.png)
+    * Updated Cases:
+        ![](frontendscreenshots/updatedcases.png)
+    * Quest with New Case:
+        ![](frontendscreenshots/questwithnewcase.png)
 
 
 <!-- end list -->
